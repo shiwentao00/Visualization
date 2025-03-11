@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Visualization</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "three/examples/": "https://unpkg.com/three@0.160.0/examples/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Create scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+
+        // Function to create RGB coordinate frame
+        function createRGBFrame(position, lineLength = 1.5) {
+            const frameGroup = new THREE.Group();
+
+            // Helper function to create individual axis line
+            function createAxisLine(start, end, color) {
+                const group = new THREE.Group();
+                
+                // Create thicker line using LineSegments
+                const points = [start, end];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const lineMaterial = new THREE.LineBasicMaterial({ 
+                    color: color,
+                    linewidth: 3
+                });
+                const line = new THREE.LineSegments(geometry, lineMaterial);
+                group.add(line);
+                
+                // Add sphere at endpoint
+                const sphereGeometry = new THREE.SphereGeometry(0.05);
+                const sphereMaterial = new THREE.MeshBasicMaterial({ color: color });
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                sphere.position.copy(end);
+                group.add(sphere);
+                
+                return group;
+            }
+
+            // Create axes
+            const xEnd = new THREE.Vector3(position.x + lineLength, position.y, position.z);
+            const yEnd = new THREE.Vector3(position.x, position.y + lineLength, position.z);
+            const zEnd = new THREE.Vector3(position.x, position.y, position.z + lineLength);
+
+            frameGroup.add(createAxisLine(position, xEnd, 0xff0000)); // Red X axis
+            frameGroup.add(createAxisLine(position, yEnd, 0x00ff00)); // Green Y axis
+            frameGroup.add(createAxisLine(position, zEnd, 0x0000ff)); // Blue Z axis
+
+            return frameGroup;
+        }
+
+        // Function to transform a coordinate frame
+        function transformFrame(frame, transformMatrix) {
+            // Create a clone of the original frame
+            const transformedFrame = frame.clone();
+            // Apply the transformation
+            transformedFrame.applyMatrix4(transformMatrix);
+            return transformedFrame;
+        }
+
+        // Create example transformation matrix
+        function createTransformMatrix(rotation, translation) {
+            const transformMatrix = new THREE.Matrix4();
+            
+            // Create rotation matrix
+            const rotationMatrix = new THREE.Matrix4();
+            if (rotation.axis === 'x') rotationMatrix.makeRotationX(rotation.angle);
+            else if (rotation.axis === 'y') rotationMatrix.makeRotationY(rotation.angle);
+            else if (rotation.axis === 'z') rotationMatrix.makeRotationZ(rotation.angle);
+            
+            // Create translation matrix
+            const translationMatrix = new THREE.Matrix4();
+            translationMatrix.makeTranslation(
+                translation.x || 0,
+                translation.y || 0,
+                translation.z || 0
+            );
+            
+            // Combine transformations (rotation then translation)
+            transformMatrix.multiply(translationMatrix);
+            transformMatrix.multiply(rotationMatrix);
+            
+            return transformMatrix;
+        }
+
+        // Create and add original RGB frame
+        const originalFrame = createRGBFrame(new THREE.Vector3(2, 2, 2));
+        scene.add(originalFrame);
+
+        // Create transformation and apply it
+        const transform = createTransformMatrix(
+            { axis: 'y', angle: Math.PI / 4 },  // 45-degree rotation around Y
+            { x: 1, y: 0.5, z: -1 }             // translation
+        );
+        const transformedFrame = transformFrame(originalFrame, transform);
+        scene.add(transformedFrame);
+
+        // Add black axes helper for the scene
+        const axesHelper = new THREE.AxesHelper(6);
+        axesHelper.setColors(0x000000, 0x000000, 0x000000);
+        scene.add(axesHelper);
+
+        // Function to create axis label
+        function createSceneAxisLabel(text, position) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#000000';
+            context.font = 'bold 48px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(text, 32, 32);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.copy(position);
+            sprite.scale.set(0.5, 0.5, 0.5);
+            return sprite;
+        }
+
+        // Add labels for scene axes
+        scene.add(createSceneAxisLabel('x', new THREE.Vector3(6.5, 0, 0)));
+        scene.add(createSceneAxisLabel('y', new THREE.Vector3(0, 6.5, 0)));
+        scene.add(createSceneAxisLabel('z', new THREE.Vector3(0, 0, 6.5)));
+
+        // Create camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(4, 4, 4);
+        camera.lookAt(2, 2, 2);
+
+        // Create renderer              
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add orbit controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
